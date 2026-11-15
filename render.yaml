@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: movemate
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: DATABASE_PATH
+        value: /var/data/movemate.sqlite
+    disk:
+      name: movemate-data
+      mountPath: /var/data
+      sizeGB: 1

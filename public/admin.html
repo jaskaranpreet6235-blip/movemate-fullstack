@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MoveMate · Quote admin</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color:#26262b;background:#faf6ee}*{box-sizing:border-box}body{margin:0;padding:32px 18px}main{max-width:1100px;margin:auto}h1,h2{color:#1b2437}header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.panel{background:white;border:1px solid #e3d9c6;border-radius:14px;padding:22px;margin:20px 0;box-shadow:0 12px 30px -14px #1b243733}input,select,button{font:inherit;padding:10px 12px;border:1px solid #d8cbb6;border-radius:8px}button{cursor:pointer;background:#f2a93b;border:0;color:#1b2437;font-weight:700}.row{display:flex;gap:10px;flex-wrap:wrap}.row input{min-width:250px;flex:1}.muted{color:#667085}.error{color:#a12828}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eee4d4;vertical-align:top}th{color:#1b2437}.status{min-width:130px}.hidden{display:none}.message{white-space:pre-wrap;max-width:280px}
+  </style>
+</head>
+<body><main>
+  <header><div><p class="muted">MOVEMATE · PRIVATE</p><h1>Quote requests</h1></div><button id="logout" class="hidden">Log out</button></header>
+  <section class="panel" id="loginPanel"><h2>Admin sign in</h2><p class="muted">Enter the ADMIN_TOKEN configured on your server.</p><form id="loginForm" class="row"><input id="token" type="password" placeholder="Admin token" autocomplete="current-password" required><button>Sign in</button></form><p id="loginError" class="error" role="alert"></p></section>
+  <section class="panel hidden" id="quotesPanel"><div class="row"><h2 style="margin:0;flex:1">Enquiries</h2><select id="filter"><option value="">All statuses</option><option>new</option><option>contacted</option><option>quoted</option><option>booked</option><option>closed</option></select><button id="refresh">Refresh</button></div><p id="resultMessage" class="muted" aria-live="polite"></p><div class="table-wrap"><table><thead><tr><th>Received</th><th>Customer</th><th>Move</th><th>Service / notes</th><th>Status</th></tr></thead><tbody id="quoteRows"></tbody></table></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let token='';
+function authHeaders(){return {'Authorization':'Bearer '+token,'Content-Type':'application/json'}}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();token=$('token').value.trim();await loadQuotes(true)});
+$('logout').addEventListener('click',()=>{token='';$('token').value='';$('loginPanel').classList.remove('hidden');$('quotesPanel').classList.add('hidden');$('logout').classList.add('hidden')});
+$('refresh').addEventListener('click',()=>loadQuotes(false));$('filter').addEventListener('change',()=>loadQuotes(false));
+async function loadQuotes(isLogin){const status=$('filter').value;const url='/api/admin/quotes'+(status?'?status='+encodeURIComponent(status):'');$('resultMessage').textContent='Loading…';try{const r=await fetch(url,{headers:authHeaders()});const data=await r.json();if(!r.ok)throw Error(data.error||'Unable to load requests');$('loginError').textContent='';$('loginPanel').classList.add('hidden');$('quotesPanel').classList.remove('hidden');$('logout').classList.remove('hidden');render(data.quotes||[])}catch(err){$('resultMessage').textContent=err.message;if(isLogin)$('loginError').textContent=err.message}}
+function cell(text){const td=document.createElement('td');td.textContent=text||'—';return td}
+function render(quotes){const body=$('quoteRows');body.replaceChildren();$('resultMessage').textContent=quotes.length+' request(s)';for(const q of quotes){const tr=document.createElement('tr');tr.append(cell(new Date(q.created_at+'Z').toLocaleString()));const customer=cell(q.name+'\n'+q.phone);tr.append(customer);tr.append(cell(q.from_location+' → '+q.to_location+(q.move_date?'\nDate: '+q.move_date:'')));const details=cell(q.service+'\n'+(q.message||''));details.className='message';tr.append(details);const td=document.createElement('td');const select=document.createElement('select');select.className='status';for(const s of ['new','contacted','quoted','booked','closed']){const o=document.createElement('option');o.value=s;o.textContent=s;o.selected=q.status===s;select.append(o)}select.addEventListener('change',async()=>{select.disabled=true;try{const r=await fetch('/api/admin/quotes/'+q.id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({status:select.value})});const d=await r.json();if(!r.ok)throw Error(d.error);$('resultMessage').textContent='Updated request #'+q.id}catch(e){alert(e.message);select.value=q.status}finally{select.disabled=false}});td.append(select);tr.append(td);body.append(tr)}}
+</script></body></html>
